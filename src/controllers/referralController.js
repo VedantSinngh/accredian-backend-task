@@ -1,31 +1,29 @@
-const { PrismaClient } = require('@prisma/client');
+import { PrismaClient } from '@prisma/client';
+import { sendReferralEmail } from '../services/emailService.js';
+import { referralSchema } from '../validators/referralValidator.js';
+import logger from '../config/logger.js';
+
 const prisma = new PrismaClient();
 
-const getReferrals = async (req, res) => {
+export const submitReferral = async (req, res, next) => {
   try {
-    const referrals = await prisma.referral.findMany();
-    res.json(referrals);
-  } catch (error) {
-    console.error('Error fetching referrals:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
+    const { error, value } = referralSchema.validate(req.body);
+    if (error) throw new Error(error.details[0].message);
 
-const createReferral = async (req, res) => {
-  const { name, email, referredBy } = req.body;
-  if (!name || !email) {
-    return res.status(400).json({ error: 'Name and email are required' });
-  }
+    const { referrerName, referrerEmail, referrerPhone, refereeName, refereeEmail, refereePhone, courseInterest } = value;
 
-  try {
-    const referral = await prisma.referral.create({
-      data: { name, email, referredBy },
+    const referral = await prisma.$transaction(async (prisma) => {
+      return prisma.referral.create({
+        data: { referrerName, referrerEmail, referrerPhone, refereeName, refereeEmail, refereePhone, courseInterest },
+      });
     });
-    res.status(201).json(referral);
+
+    await sendReferralEmail(refereeEmail, courseInterest);
+
+    logger.info(`Referral submitted: ${referral.id}`);
+    res.status(201).json({ success: true, data: referral });
   } catch (error) {
-    console.error('Error creating referral:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    logger.error(`Error in submitReferral: ${error.message}`);
+    next(error);
   }
 };
-
-module.exports = { getReferrals, createReferral };

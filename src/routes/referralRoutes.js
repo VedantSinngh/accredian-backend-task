@@ -1,8 +1,8 @@
-const express = require('express');
+import express from 'express';
+import { submitReferral } from '../controllers/referralController.js';
+
 const router = express.Router();
-const referralController = require('../controllers/referralController');
 
-router.get('/', referralController.getReferrals);
-router.post('/', referralController.createReferral);
+router.post('/', submitReferral);
 
-module.exports = router;
+export default router;
